@@ -263,3 +263,28 @@ def get_timer(t: ValueTracker, timer_pos: np.ndarray, font_size: int,
     return get_vec_info(
         t, 't=', font_size, lambda c_t: c_t, {'num_decimal_places': num_decimal_places, 'font_size': font_size}
     ).arrange(RIGHT, buff=buff).move_to(timer_pos)
+
+
+def find_map(from_: np.ndarray, to_: np.ndarray,
+             val: Optional[float] = None, idx: Optional[int] = None) -> tuple[int, float]:
+    if idx is not None:
+        return idx, to_[idx]
+    if val is None:
+        raise ValueError('At least val should not be None, when idx is None')
+
+    idx = bin_search(from_, val)
+    cur_v, prev_v = val, val
+    cur_m, pred_m = 0, 0
+
+    if idx < len(from_):
+        cur_m, cur_v = to_[idx], from_[idx]
+    if idx > 0:
+        pred_m, prev_v = to_[idx - 1], from_[idx - 1]
+
+    if idx == 0:
+        return idx, cur_m
+    if idx == len(from_):
+        return idx, pred_m
+
+    return idx, (cur_m - pred_m) * (val - prev_v) / (cur_v - prev_v) + pred_m
+

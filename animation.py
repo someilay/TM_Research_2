@@ -1,9 +1,8 @@
 from manim import *
-from scipy.integrate import odeint
 from typing import Optional
 from helpers import get_axes_config, bin_search, get_mut_circle, get_mut_dot, get_dot_title, get_timer, \
-    get_line
-from main import R, THETA_0, PHI_0, THETA_DOT_0, PHI_DOT_0, equation, r_a, r_a_0, r_b
+    get_line, find_map
+from main import R, r_a, r_a_0, r_b, solve_dif_equations
 
 
 class Main(Scene):
@@ -19,8 +18,14 @@ class Main(Scene):
 
     INIT_T = 0
     FINAL_T = 10
-    PLAYBACK_SPEED = 0.1
+    PLAYBACK_SPEED = 0.2
     STEPS = int(max(1.0, FINAL_T - INIT_T) * 2000)
+
+    L = 0.4
+    THETA_0 = 0
+    PHI_0 = -L / R
+    THETA_DOT_0 = 0
+    PHI_DOT_0 = 0
 
     VECTORS_KWARGS = {
         'stroke_width': 2,
@@ -34,47 +39,22 @@ class Main(Scene):
     def init_vals():
         source = Main
         if source.ANGLES is None or source.ANGULAR_VS is None:
-            state_0 = np.array([THETA_0, PHI_0, THETA_DOT_0, PHI_DOT_0])
-            source.TIMESTAMPS = np.linspace(source.INIT_T, source.FINAL_T, source.STEPS)
-            solution = odeint(equation, state_0, source.TIMESTAMPS)
+            state_0 = np.array([source.THETA_0, source.PHI_0, source.THETA_DOT_0, source.PHI_DOT_0])
+            solution, source.TIMESTAMPS = solve_dif_equations(source.INIT_T, source.FINAL_T, source.L, state_0)
             source.ANGLES = solution[:, :2]
             source.THETAS, source.PHIS = source.ANGLES[:, 0], source.ANGLES[:, 1]
             source.ANGULAR_VS = solution[:, 2:]
             source.THETA_DOTS, source.PHI_DOTS = source.ANGULAR_VS[:, 0], source.ANGULAR_VS[:, 1]
 
     @staticmethod
-    def find_map(from_: np.ndarray, to_: np.ndarray,
-                 val: Optional[float] = None, idx: Optional[int] = None) -> tuple[int, float]:
-        if idx is not None:
-            return idx, to_[idx]
-        if val is None:
-            raise ValueError('At least val should not be None, when idx is None')
-
-        idx = bin_search(from_, val)
-        cur_v, prev_v = val, val
-        cur_m, pred_m = 0, 0
-
-        if idx < len(from_):
-            cur_m, cur_v = to_[idx], from_[idx]
-        if idx > 0:
-            pred_m, prev_v = to_[idx - 1], from_[idx - 1]
-
-        if idx == 0:
-            return idx, cur_m
-        if idx == len(from_):
-            return idx, pred_m
-
-        return idx, (cur_m - pred_m) * (val - prev_v) / (cur_v - prev_v) + pred_m
-
-    @staticmethod
     def r_a(t: float) -> np.ndarray:
         source = Main
         source.init_vals()
 
-        idx, theta = source.find_map(source.TIMESTAMPS, source.THETAS, val=t)
-        _, phi = source.find_map(source.TIMESTAMPS, source.PHIS, idx=idx)
+        idx, theta = find_map(source.TIMESTAMPS, source.THETAS, val=t)
+        _, phi = find_map(source.TIMESTAMPS, source.PHIS, idx=idx)
 
-        r_ax, r_ay = r_a(theta, phi)
+        r_ax, r_ay = r_a(theta, phi, source.L)
         return np.array([r_ax, r_ay, 0])
 
     @staticmethod
@@ -82,10 +62,10 @@ class Main(Scene):
         source = Main
         source.init_vals()
 
-        idx, theta = source.find_map(source.TIMESTAMPS, source.THETAS, val=t)
-        _, phi = source.find_map(source.TIMESTAMPS, source.PHIS, idx=idx)
+        idx, theta = find_map(source.TIMESTAMPS, source.THETAS, val=t)
+        _, phi = find_map(source.TIMESTAMPS, source.PHIS, idx=idx)
 
-        r_ax_0, r_ay_0 = r_a_0(theta, phi)
+        r_ax_0, r_ay_0 = r_a_0(theta, phi, source.L)
         return np.array([r_ax_0, r_ay_0, 0])
 
     @staticmethod
@@ -93,10 +73,10 @@ class Main(Scene):
         source = Main
         source.init_vals()
 
-        idx, theta = source.find_map(source.TIMESTAMPS, source.THETAS, val=t)
-        _, phi = source.find_map(source.TIMESTAMPS, source.PHIS, idx=idx)
+        idx, theta = find_map(source.TIMESTAMPS, source.THETAS, val=t)
+        _, phi = find_map(source.TIMESTAMPS, source.PHIS, idx=idx)
 
-        r_bx, r_by = r_b(theta, phi)
+        r_bx, r_by = r_b(theta, phi, source.L)
         return np.array([r_bx, r_by, 0])
 
     def construct(self):
@@ -104,11 +84,11 @@ class Main(Scene):
         axes = Axes(
             **get_axes_config(
                 [-0.1, 0.1, 0.05],
-                [-0.35, 0.05, 0.05],
+                [-0.45, 0.05, 0.05],
                 None,
                 None,
                 12,
-                3.7,
+                3,
                 x_decimal_place=3,
                 y_decimal_place=2
             )
